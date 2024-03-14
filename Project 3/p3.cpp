@@ -44,29 +44,134 @@ int ContactList::getCount() {
 // 1. return false and print nothing if the contact is not in the list
 // 2. otherwise return true and print the contact
 bool ContactList::printContact(std::ostream &os, std::string first, std::string last) {
-    return true;
+    Contact *temp = headContactList;
+    while (temp != nullptr) {
+        if (temp->first == first && temp->last == last) {
+            os << "Contact Name: " << temp->first << " " << temp->last << std::endl;
+            Info *infoTemp = temp->headInfoList;
+            while (infoTemp != nullptr) {
+                os << "    " << infoTemp->name << " | " << infoTemp->value << std::endl;
+                infoTemp = infoTemp->next;
+            }
+            return true;
+        }
+        temp = temp->next;
+    }
+    return false; // Contact not found
 }
 
 // print all contacts and their information
 // print nothing if the list is empty
 void ContactList::print(std::ostream &os) {
-
+    if (headContactList == nullptr) {
+        return; // List is empty
+    }
+    Contact *temp = headContactList;
+    while (temp != nullptr) {
+        os << "Contact Name: " << temp->first << " " << temp->last << std::endl;
+        Info *infoTemp = temp->headInfoList;
+        while (infoTemp != nullptr) {
+            os << "    " << infoTemp->name << " | " << infoTemp->value << std::endl;
+            infoTemp = infoTemp->next;
+        }
+        temp = temp->next;
+    }
 }
-
 // add a contact to the back of the list
 // 1. return false and do nothing if the contact is already in the list
 // 2. otherwise return true and add the contact to the back of the list
 // - do not forget to update count
 bool ContactList::addContact(std::string first, std::string last) {
-    return true;
+    Contact *newContact = new Contact(first, last);
+    if (headContactList == nullptr) {
+        headContactList = newContact;
+        count++;
+        return true;
+    } else {
+        Contact *temp = headContactList;
+        while (temp->next != nullptr) {
+            if (temp->first == first && temp->last == last) {
+                delete newContact; // Contact already exists, so delete the newly created one and return false
+                return false;
+            }
+            temp = temp->next;
+        }
+        temp->next = newContact; // Add newContact at the end of the list
+        count++;
+        return true;
+    }
 }
-
 // add info to the back of a contact's info list
 // 1. return false and do nothing if the contact is not in the list
 // 2. if the infoName is already in the info list, update the infoValue and return true
 // 3. otherwise add the info to the back of the contact's list and return true
 bool ContactList::addInfo(std::string first, std::string last, std::string infoName, std::string infoVal) {
-    return true;
+    Contact *temp = headContactList;
+    while (temp != nullptr) {
+        if (temp->first == first && temp->last == last) {
+            Info *newInfo = new Info(infoName, infoVal);
+            if (temp->headInfoList == nullptr) {
+                temp->headInfoList = newInfo; // First info for this contact
+            } else {
+                Info *infoTemp = temp->headInfoList;
+                while (infoTemp->next != nullptr) {
+                    infoTemp = infoTemp->next;
+                }
+                infoTemp->next = newInfo; // Add newInfo at the end of the list
+            }
+            return true;
+        }
+        temp = temp->next;
+    }
+    return false; // Contact not found
+}
+
+Contact* findContactPrev(Contact **head, std::string first, std::string last) {
+    Contact *prev = nullptr, *cur = *head;
+    while (cur != nullptr && (cur->last < last || (cur->last == last && cur->first < first))) {
+        prev = cur;
+        cur = cur->next;
+    }
+    // Return nullptr if contact not found, else the previous node
+    return (cur != nullptr && cur->first == first && cur->last == last) ? prev : nullptr;
+}
+
+void insertContactOrdered(Contact **head, Contact *newContact) {
+    if (*head == nullptr || (*head)->last > newContact->last || ((*head)->last == newContact->last && (*head)->first > newContact->first)) {
+        newContact->next = *head;
+        *head = newContact;
+    } else {
+        Contact *cur = *head;
+        while (cur->next != nullptr && (cur->next->last < newContact->last || (cur->next->last == newContact->last && cur->next->first < newContact->first))) {
+            cur = cur->next;
+        }
+        newContact->next = cur->next;
+        cur->next = newContact;
+    }
+}
+
+Info* findInfoPrev(Info **head, std::string name) {
+    Info *prev = nullptr, *cur = *head;
+    while (cur != nullptr && cur->name < name) {
+        prev = cur;
+        cur = cur->next;
+    }
+    // Return nullptr if info not found, else the previous node
+    return (cur != nullptr && cur->name == name) ? prev : nullptr;
+}
+
+void insertInfoOrdered(Info **head, Info *newInfo) {
+    if (*head == nullptr || (*head)->name > newInfo->name) {
+        newInfo->next = *head;
+        *head = newInfo;
+    } else {
+        Info *cur = *head;
+        while (cur->next != nullptr && cur->next->name < newInfo->name) {
+            cur = cur->next;
+        }
+        newInfo->next = cur->next;
+        cur->next = newInfo;
+    }
 }
 
 // add a contact to the list in ascending order by last name
@@ -77,6 +182,32 @@ bool ContactList::addInfo(std::string first, std::string last, std::string infoN
 // - compare strings with the built-in comparison operators: <, >, ==, etc.
 // - a compare method/function is recommended
 bool ContactList::addContactOrdered(std::string first, std::string last) {
+    // Check for existing contact
+    Contact* prev = nullptr;
+    for (Contact* cur = headContactList; cur != nullptr; prev = cur, cur = cur->next) {
+        if (cur->first == first && cur->last == last) {
+            // Contact already exists
+            return false;
+        }
+        if ((cur->last > last) || (cur->last == last && cur->first > first)) {
+            break;
+        }
+    }
+
+    // Create new contact
+    Contact* newContact = new Contact(first, last);
+
+    if (prev == nullptr) {
+        // Insert at the beginning
+        newContact->next = headContactList;
+        headContactList = newContact;
+    } else {
+        // Insert after prev
+        newContact->next = prev->next;
+        prev->next = newContact;
+    }
+
+    count++; // Update count
     return true;
 }
 
@@ -85,6 +216,46 @@ bool ContactList::addContactOrdered(std::string first, std::string last) {
 // 2. if the infoName is already in the info list, update the infoValue and return true
 // 3. otherwise add the info to the contact's list and return true
 bool ContactList::addInfoOrdered(std::string first, std::string last, std::string infoName, std::string infoVal) {
+    // Find the contact
+    Contact* target = nullptr;
+    for (Contact* cur = headContactList; cur != nullptr; cur = cur->next) {
+        if (cur->first == first && cur->last == last) {
+            target = cur;
+            break;
+        }
+    }
+
+    if (target == nullptr) {
+        // Contact not found
+        return false;
+    }
+
+    // Check for existing info
+    Info* prevInfo = nullptr;
+    for (Info* cur = target->headInfoList; cur != nullptr; prevInfo = cur, cur = cur->next) {
+        if (cur->name == infoName) {
+            // Info exists, update value
+            cur->value = infoVal;
+            return true;
+        }
+        if (cur->name > infoName) {
+            break;
+        }
+    }
+
+    // Create new info
+    Info* newInfo = new Info(infoName, infoVal);
+
+    if (prevInfo == nullptr) {
+        // Insert at the beginning
+        newInfo->next = target->headInfoList;
+        target->headInfoList = newInfo;
+    } else {
+        // Insert after prevInfo
+        newInfo->next = prevInfo->next;
+        prevInfo->next = newInfo;
+    }
+
     return true;
 }
 
@@ -93,6 +264,39 @@ bool ContactList::addInfoOrdered(std::string first, std::string last, std::strin
 // 2. otherwise return true and remove the contact and its info
 // - do not forget to update count
 bool ContactList::removeContact(std::string first, std::string last) {
+    Contact *prev = nullptr, *cur = headContactList;
+    
+    // Find the contact to remove
+    while (cur != nullptr) {
+        if (cur->first == first && cur->last == last) {
+            break;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+    
+    if (cur == nullptr) {
+        // Contact not found
+        return false;
+    }
+    
+    // Remove contact from the list
+    if (prev == nullptr) {
+        headContactList = cur->next;
+    } else {
+        prev->next = cur->next;
+    }
+
+    // Remove all associated info nodes
+    Info *infoCur = cur->headInfoList, *infoNext;
+    while (infoCur != nullptr) {
+        infoNext = infoCur->next;
+        delete infoCur;
+        infoCur = infoNext;
+    }
+
+    delete cur; // Delete the contact itself
+    count--; // Update count
     return true;
 }
 
@@ -101,25 +305,94 @@ bool ContactList::removeContact(std::string first, std::string last) {
 // 2. return false and do nothing if the info is not in the contact's info list
 // 3. otherwise return true and remove the info from the contact's list
 bool ContactList::removeInfo(std::string first, std::string last, std::string infoName) {
+    // Find the target contact
+    Contact *target = headContactList;
+    while (target != nullptr && !(target->first == first && target->last == last)) {
+        target = target->next;
+    }
+    
+    if (target == nullptr) {
+        // Contact not found
+        return false;
+    }
+    
+    Info *prevInfo = nullptr, *curInfo = target->headInfoList;
+    // Find the info to remove
+    while (curInfo != nullptr) {
+        if (curInfo->name == infoName) {
+            break;
+        }
+        prevInfo = curInfo;
+        curInfo = curInfo->next;
+    }
+    
+    if (curInfo == nullptr) {
+        // Info not found
+        return false;
+    }
+    
+    // Remove info from the list
+    if (prevInfo == nullptr) {
+        target->headInfoList = curInfo->next;
+    } else {
+        prevInfo->next = curInfo->next;
+    }
+    
+    delete curInfo; // Delete the info node
     return true;
 }
 
 // destroy the list by removing all contacts and their infos
 ContactList::~ContactList() {
-
+    Contact *cur = headContactList, *nextContact;
+    while (cur != nullptr) {
+        nextContact = cur->next;
+        Info *curInfo = cur->headInfoList, *nextInfo;
+        while (curInfo != nullptr) {
+            nextInfo = curInfo->next;
+            delete curInfo; // Free each Info node
+            curInfo = nextInfo;
+        }
+        delete cur; // Free each Contact node
+        cur = nextContact;
+    }
 }
-
 // deep copy the source list
 // - do not forget to update count
 ContactList::ContactList(const ContactList &src) {
-
+    headContactList = nullptr;
+    count = src.count;
+    Contact **lastPtr = &headContactList;
+    for (Contact *srcCur = src.headContactList; srcCur != nullptr; srcCur = srcCur->next) {
+        *lastPtr = new Contact(srcCur->first, srcCur->last);
+        Info **lastInfoPtr = &((*lastPtr)->headInfoList);
+        for (Info *srcInfo = srcCur->headInfoList; srcInfo != nullptr; srcInfo = srcInfo->next) {
+            *lastInfoPtr = new Info(srcInfo->name, srcInfo->value);
+            lastInfoPtr = &((*lastInfoPtr)->next);
+        }
+        lastPtr = &((*lastPtr)->next);
+    }
 }
-
 // remove all contacts and their info then deep copy the source list
 // - do not forget to update count
 const ContactList &ContactList::operator=(const ContactList &src) {
-    if (this != &src) {
+    if (this != &src) { // Protect against self-assignment
+        // Clear current list
+        this->~ContactList(); // Reuse destructor to free current memory
 
+        // Deep copy from src
+        headContactList = nullptr;
+        count = src.count;
+        Contact **lastPtr = &headContactList;
+        for (Contact *srcCur = src.headContactList; srcCur != nullptr; srcCur = srcCur->next) {
+            *lastPtr = new Contact(srcCur->first, srcCur->last);
+            Info **lastInfoPtr = &((*lastPtr)->headInfoList);
+            for (Info *srcInfo = srcCur->headInfoList; srcInfo != nullptr; srcInfo = srcInfo->next) {
+                *lastInfoPtr = new Info(srcInfo->name, srcInfo->value);
+                lastInfoPtr = &((*lastInfoPtr)->next);
+            }
+            lastPtr = &((*lastPtr)->next);
+        }
     }
     return *this;
 }
