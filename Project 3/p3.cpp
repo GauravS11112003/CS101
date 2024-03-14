@@ -106,25 +106,33 @@ bool ContactList::addContact(std::string first, std::string last) {
 // 2. if the infoName is already in the info list, update the infoValue and return true
 // 3. otherwise add the info to the back of the contact's list and return true
 bool ContactList::addInfo(std::string first, std::string last, std::string infoName, std::string infoVal) {
-    Contact *temp = headContactList;
-    while (temp != nullptr) {
-        if (temp->first == first && temp->last == last) {
-            Info *newInfo = new Info(infoName, infoVal);
-            if (temp->headInfoList == nullptr) {
-                temp->headInfoList = newInfo; // First info for this contact
-            } else {
-                Info *infoTemp = temp->headInfoList;
-                while (infoTemp->next != nullptr) {
-                    infoTemp = infoTemp->next;
+    Contact *contact = headContactList;
+    while (contact != nullptr) {
+        if (contact->first == first && contact->last == last) {
+            Info *info = contact->headInfoList;
+            Info *prevInfo = nullptr;
+            while (info != nullptr) {
+                if (info->name == infoName) {
+                    info->value = infoVal; // Update existing info value
+                    return true;
                 }
-                infoTemp->next = newInfo; // Add newInfo at the end of the list
+                prevInfo = info;
+                info = info->next;
+            }
+            // If infoName not found, add new info
+            Info *newInfo = new Info(infoName, infoVal);
+            if (prevInfo == nullptr) {
+                contact->headInfoList = newInfo; // First info for this contact
+            } else {
+                prevInfo->next = newInfo; // Add newInfo at the end of the list
             }
             return true;
         }
-        temp = temp->next;
+        contact = contact->next;
     }
     return false; // Contact not found
 }
+
 
 Contact* findContactPrev(Contact **head, std::string first, std::string last) {
     Contact *prev = nullptr, *cur = *head;
