@@ -82,25 +82,35 @@ void ContactList::print(std::ostream &os) {
 // 2. otherwise return true and add the contact to the back of the list
 // - do not forget to update count
 bool ContactList::addContact(std::string first, std::string last) {
-    Contact *newContact = new Contact(first, last);
-    if (headContactList == nullptr) {
-        headContactList = newContact;
-        count++;
-        return true;
+       // Check if the contact already exists in the list
+    Contact *temp = this->headContactList;
+    while (temp != nullptr) {
+        if (temp->first == first && temp->last == last) {
+            return false; // Contact already exists
+        }
+        temp = temp->next;
+    }
+
+    // If the contact does not exist, add it to the end of the list
+    Contact *newContact = new Contact(first, last, nullptr);
+    if (this->headContactList == nullptr) {
+        // If the list is empty, make the new contact the head of the list
+        this->headContactList = newContact;
     } else {
-        Contact *temp = headContactList;
+        // If the list is not empty, traverse to the end and add the new contact
+        temp = this->headContactList;
         while (temp->next != nullptr) {
-            if (temp->first == first && temp->last == last) {
-                delete newContact; // Contact already exists, so delete the newly created one and return false
-                return false;
-            }
             temp = temp->next;
         }
-        temp->next = newContact; // Add newContact at the end of the list
-        count++;
-        return true;
+        temp->next = newContact;
     }
+
+    // Increase the count of contacts
+    this->count++;
+
+    return true;
 }
+
 // add info to the back of a contact's info list
 // 1. return false and do nothing if the contact is not in the list
 // 2. if the infoName is already in the info list, update the infoValue and return true
@@ -272,40 +282,49 @@ bool ContactList::addInfoOrdered(std::string first, std::string last, std::strin
 // 2. otherwise return true and remove the contact and its info
 // - do not forget to update count
 bool ContactList::removeContact(std::string first, std::string last) {
-    Contact *prev = nullptr, *cur = headContactList;
-    
-    // Find the contact to remove
-    while (cur != nullptr) {
-        if (cur->first == first && cur->last == last) {
-            break;
+  // Check if the list is empty
+    if (this->headContactList == nullptr) {
+        return false; // List is empty, contact not found
+    }
+
+    Contact *temp = this->headContactList;
+    Contact *prev = nullptr;
+
+    // Traverse the list to find the contact
+    while (temp != nullptr) {
+        if (temp->first == first && temp->last == last) {
+            // Contact found, remove it from the list
+            if (prev == nullptr) {
+                // The contact to remove is the head of the list
+                this->headContactList = temp->next;
+            } else {
+                // The contact to remove is in the middle or end of the list
+                prev->next = temp->next;
+            }
+
+            // Delete the contact's info list
+            Info *infoTemp = temp->headInfoList;
+            while (infoTemp != nullptr) {
+                Info *nextInfo = infoTemp->next;
+                delete infoTemp;
+                infoTemp = nextInfo;
+            }
+
+            // Delete the contact
+            delete temp;
+
+            // Decrease the count of contacts
+            this->count--;
+
+            return true;
         }
-        prev = cur;
-        cur = cur->next;
-    }
-    
-    if (cur == nullptr) {
-        // Contact not found
-        return false;
-    }
-    
-    // Remove contact from the list
-    if (prev == nullptr) {
-        headContactList = cur->next;
-    } else {
-        prev->next = cur->next;
+
+        prev = temp;
+        temp = temp->next;
     }
 
-    // Remove all associated info nodes
-    Info *infoCur = cur->headInfoList, *infoNext;
-    while (infoCur != nullptr) {
-        infoNext = infoCur->next;
-        delete infoCur;
-        infoCur = infoNext;
-    }
-
-    delete cur; // Delete the contact itself
-    count--; // Update count
-    return true;
+    // Contact not found
+    return false;
 }
 
 // remove the info from a contact's info list
