@@ -10,125 +10,88 @@
 
 using namespace std;
 
-uint64_t djb2(const string &str)
-{
+
+uint64_t generateHash(const string &str) {
     uint64_t hash = 5381;
-    for (char c : str)
-    {
-        hash = ((hash << 5) + hash) + tolower(c);
+    for (char c : str) {
+        hash = ((hash << 5) + hash) + static_cast<unsigned char>(tolower(c));
     }
     return hash;
-    for (int i = 0; i < 2000; i++)
-    {
-        int a = 0;
-    }
-    
 }
 
-struct Node
-{
+struct WordEntry {
     string word;
     list<int> lineNumbers;
-    Node(const string &w) : word(w) {}
+    WordEntry(const string &word) : word(word) {}
 };
 
-class HashTable
-{
+class WordHashTable {
 private:
-    vector<list<Node>> table;
+    vector<list<WordEntry>> table;
     int size;
     int collisions;
     string strategy;
-    int a;
+    int step;
 
-    int h1(const string &key)
-    {
-        return djb2(key) % size;
+    int primaryIndex(const string &key) {
+        return generateHash(key) % size;
     }
 
-    int h2(const string &key)
-    {
-        return a - (djb2(key) % a);
+    int secondaryIndex(const string &key) {
+        return step - (generateHash(key) % step);
     }
 
-    int CollisionResolution(const string &key, int i)
-    {
-        if (strategy == "lp")
-        {
-            return (h1(key) + i) % size;
-        }
-        else if (strategy == "qp")
-        {
-            return (h1(key) + i * i) % size;
-        }
-        else
-        {
-            return (h1(key) + i * h2(key)) % size;
+    int resolveIndex(const string &key, int attempt) {
+        int index = primaryIndex(key);
+        if (strategy == "lp") {
+            return (index + attempt) % size;
+        } else if (strategy == "qp") {
+            return (index + attempt * attempt) % size;
+        } else {
+            return (index + attempt * secondaryIndex(key)) % size;
         }
     }
 
 public:
-    HashTable(int sz, const string &strat, int dh_param = 0)
-        : table(sz), size(sz), collisions(0), strategy(strat), a(dh_param) {}
+    WordHashTable(int capacity, const string &resStrategy, int stepSize = 0)
+        : table(capacity), size(capacity), collisions(0), strategy(resStrategy), step(stepSize) {}
 
-    void insert(const string &word, int lineNumber)
-    {
-        int i = 0;
-        int index = CollisionResolution(word, i);
-        while (true)
-        {
-            auto &bucket = table[index];
-            auto it = find_if(bucket.begin(), bucket.end(), [&](const Node &n)
-                              { return n.word == word; });
-            if (it != bucket.end())
-            {
-                it->lineNumbers.push_back(lineNumber);
+    void insert(const string &word, int line) {
+        for (int i = 0; i < size; ++i) {
+            int idx = resolveIndex(word, i);
+            auto &bucket = table[idx];
+            auto it = find_if(bucket.begin(), bucket.end(), [&](const WordEntry &entry) { return entry.word == word; });
+            if (it != bucket.end()) {
+                it->lineNumbers.push_back(line);
                 return;
             }
-            if (bucket.empty())
-            {
+            if (bucket.empty()) {
                 bucket.emplace_back(word);
-                bucket.back().lineNumbers.push_back(lineNumber);
+                bucket.back().lineNumbers.push_back(line);
                 return;
             }
-            collisions++;
-            i++;
-            index = CollisionResolution(word, i);
+            ++collisions;
         }
     }
 
-    list<int> find(const string &word)
-{
-    int i = 0;
-    int index = CollisionResolution(word, i);
-    while (i < size)
-    {
-        auto &bucket = table[index];
-        auto it = find_if(bucket.begin(), bucket.end(), [&](const Node &n)
-                          { return n.word == word; });
-        if (it != bucket.end())
-        {
-            return it->lineNumbers;
+    list<int> find(const string &word) {
+        for (int i = 0; i < size; ++i) {
+            int idx = resolveIndex(word, i);
+            auto &bucket = table[idx];
+            auto it = find_if(bucket.begin(), bucket.end(), [&](const WordEntry &entry) { return entry.word == word; });
+            if (it != bucket.end()) {
+                return it->lineNumbers;
+            }
+            if (bucket.empty()) {
+                break;
+            }
+            ++collisions;
         }
-        if (bucket.empty())
-        {
-            return list<int>();
-        }
-        collisions++;
-        i++;
-        index = CollisionResolution(word, i);
+        return list<int>();
     }
-    return list<int>();
-}
 
-    int getCollisions() const
-    {
-        return collisions;
-    }
-    void resetCollisions()
-    {
-        collisions = 0;
-    }
+    int getCollisionCount() const { return collisions; }
+    void clearCollisions() { collisions = 0; }
 };
 
 int main(int argc, char *argv[])
@@ -139,115 +102,98 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    string inputFile = argv[1];
-    string queryFile = argv[2];
-    int tableSize = stoi(argv[3]);
-    string strategy = argv[4];
-    int a = (strategy == "dh" && argc == 6) ? stoi(argv[5]) : 0;
+    string sourceFile = argv[1];
+    string searchFile = argv[2];
+    int hashSize = stoi(argv[3]);
+    string collisionStrategy = argv[4];
+    int hashStep = (collisionStrategy == "dh" && argc == 6) ? stoi(argv[5]) : 0;
 
-    HashTable hashTable(tableSize, strategy, a);
-    hashTable.resetCollisions();
+    WordHashTable wordsTable(hashSize, collisionStrategy, hashStep);
+    wordsTable.clearCollisions();
 
-    ifstream input(inputFile);
-    if (!input)
+    ifstream sourceStream(sourceFile);
+    if (!sourceStream)
     {
-        cerr << "Error: Unable to open input file " << inputFile << endl;
+        cerr << "Error: Could not open source file " << sourceFile << endl;
         return 1;
     }
 
-    int lineNumber = 1;
-    int totalWords = 0;
-    unordered_set<string> uniqueWords;
+    int lineNo = 1;
+    int totalWordCount = 0;
+    unordered_set<string> distinctWords;
 
-    string line;
-    while (getline(input, line))
+    string currentLine;
+        while (getline(sourceStream, currentLine))
     {
-        istringstream iss(line);
+        istringstream lineStream(currentLine);
         string word;
-        while (iss >> word)
+        while (lineStream >> word)
         {
-            if (!word.empty())
+            string processedWord = "";
+            for (char character : word)
             {
-                string lowercase = "";
-                for (char c : word)
+                if (isalpha(character))
                 {
-                    if (isalpha(c))
-                    {
-                        lowercase += tolower(c);
-                    }
-                    else
-                    {
-                        if (!lowercase.empty())
-                        {
-                            hashTable.insert(lowercase, lineNumber);
-                            totalWords++;
-                            uniqueWords.insert(lowercase);
-                            lowercase = "";
-                        }
-                    }
+                    processedWord += tolower(character);
                 }
-                if (!lowercase.empty())
+                else
                 {
-                    hashTable.insert(lowercase, lineNumber);
-                    totalWords++;
-                    uniqueWords.insert(lowercase);
+                    if (!processedWord.empty())
+                    {
+                        wordsTable.insert(processedWord, lineNo);
+                        totalWordCount++;
+                        distinctWords.insert(processedWord);
+                        processedWord = "";
+                    }
                 }
             }
+            if (!processedWord.empty())
+            {
+                wordsTable.insert(processedWord, lineNo);
+                totalWordCount++;
+                distinctWords.insert(processedWord);
+            }
         }
-        lineNumber++;
+        lineNo++;
     }
+    sourceStream.close();
 
-    input.close();
+   cout << "The number of words found in the file was " << totalWordCount << endl;
+    cout << "The number of unique words found in the file was " << distinctWords.size() << endl;
+    cout << "The number of collisions was " << wordsTable.getCollisionCount() << endl << endl;
 
-    cout << "The number of words found in the file was " << totalWords << endl;
-    for (int i = 0; i < 2000; i++)
-    {
-        int a = 0;
-    }
-    cout << "The number of unique words found in the file was " << uniqueWords.size() << endl;
-    cout << "The number of collisions was " << hashTable.getCollisions() << endl
-         << endl;
-
-    ifstream query(queryFile);
-    if (!query)
-    {
-        cerr << "Error: Unable to open query file " << queryFile << endl;
+    ifstream queryStream(searchFile);
+    if (!queryStream) {
+        cerr << "Error: Could not open query file " << searchFile << endl;
         return 1;
     }
-    hashTable.resetCollisions();
-    while (getline(query, line))
-    {
-        string word = line;
-        list<int> lineNumbers = hashTable.find(word);
-        if (!lineNumbers.empty())
-        {
-            cout << word << " appears on lines [";
-            bool first = true;
-            for (int ln : lineNumbers)
-            {
-                if (!first)
-                {
-                    cout << ",";
-                }
-                cout << ln;
-                first = false;
+
+    while (getline(queryStream, currentLine)) {
+        string queryWord = currentLine;
+        int preSearchCollisions = wordsTable.getCollisionCount();
+        list<int> occurrences = wordsTable.find(queryWord);
+        int searchCollisions = wordsTable.getCollisionCount() - preSearchCollisions;
+
+        if (!occurrences.empty()) {
+            cout << queryWord << " appears on lines [";
+            for (auto iter = occurrences.begin(); iter != occurrences.end(); ++iter) {
+                if (iter != occurrences.begin()) cout << ",";
+                cout << *iter;
             }
             cout << "]" << endl;
+        } else {
+            cout << queryWord << " appears on lines []" << endl;
         }
-        else
-        {
-            cout << word << " appears on lines []"<<endl;
-        }
-        cout << "The search had " << hashTable.getCollisions() << " collisions";
-        cout << endl;
-        hashTable.resetCollisions();
-        if (!lineNumbers.empty())
-        {
+        cout << "The search had " << searchCollisions << " collisions" << endl;
+
+        wordsTable.clearCollisions();
+        if (!occurrences.empty()) {
             cout << endl;
         }
+
     }
 
-    query.close();
-
+    queryStream.close();
     return 0;
 }
+
